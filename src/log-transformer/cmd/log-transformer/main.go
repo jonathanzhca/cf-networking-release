@@ -38,7 +38,7 @@ func main() {
 		logger.Fatal("create-output-file", err)
 	}
 
-	t, err := tail.TailFile(conf.InputFile, tail.Config{
+	t, err := tail.TailFile(conf.KernelLogFile, tail.Config{
 		Location: &tail.SeekInfo{
 			Offset: 0,
 			Whence: os.SEEK_END,
@@ -51,8 +51,16 @@ func main() {
 		logger.Fatal("tail-input", err)
 	}
 
+	logTransformer := &LogTransformer{
+		Lines:          t.Lines,
+		Parser:         parser,
+		Logger:         logger,
+		IPTablesLogger: iptablesLogger,
+	}
+
+	logTransformer.Run()
+
 	go func() {
-		fmt.Println("*** hello ***")
 		for {
 			select {
 			case line := <-t.Lines:
