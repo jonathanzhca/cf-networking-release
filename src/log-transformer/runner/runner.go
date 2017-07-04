@@ -1,7 +1,6 @@
 package runner
 
 import (
-	"lib/datastore"
 	"log-transformer/merger"
 	"log-transformer/parser"
 	"os"
@@ -10,9 +9,9 @@ import (
 	"github.com/hpcloud/tail"
 )
 
-//go:generate counterfeiter -o fakes/logMerger.go --fake-name LogMerger . logMerger
+//go:generate counterfeiter -o fakes/log_merger.go --fake-name LogMerger . logMerger
 type logMerger interface {
-	Merge(parser.ParsedData, datastore.Container, datastore.Container) (merger.IPTablesLogData, error)
+	Merge(parser.ParsedData) (merger.IPTablesLogData, error)
 }
 
 //go:generate counterfeiter -o fakes/kernel_log_parser.go --fake-name KernelLogParser . kernelLogParser
@@ -25,7 +24,6 @@ type Runner struct {
 	Lines          chan *tail.Line
 	Parser         kernelLogParser
 	Merger         logMerger
-	Store          datastore.Datastore
 	Logger         lager.Logger
 	IPTablesLogger lager.Logger
 }
@@ -45,13 +43,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 			}
 			if r.Parser.IsIPTablesLogData(line.Text) {
 				parsed := r.Parser.Parse(line.Text)
-				containers, err := r.Store.ReadAll()
-				if err != nil {
-					panic(err)
-				}
-				src := containers[parsed.Source]
-				dst := containers[parsed.Destination]
-				merged, err := r.Merger.Merge(parsed, src, dst)
+				merged, err := r.Merger.Merge(parsed)
 				if err != nil {
 					r.Logger.Error("merge-kernel-logs", err)
 					continue

@@ -1,12 +1,21 @@
 package parser
 
 import (
+	"strconv"
 	"strings"
 )
 
 type ParsedData struct {
-	Source      string
-	Destination string
+	Direction       string
+	Allowed         bool
+	SourceIP        string
+	DestinationIP   string
+	SourcePort      int
+	DestinationPort int
+	Protocol        string
+	Mark            string
+	ICMPType        int
+	ICMPCode        int
 }
 
 type KernelLogParser struct {
@@ -14,10 +23,14 @@ type KernelLogParser struct {
 
 func (k *KernelLogParser) IsIPTablesLogData(line string) bool {
 	return strings.Contains(line, "OK_") || strings.Contains(line, "DENY_")
-
 }
-func (k *KernelLogParser) Parse(line string) map[string]interface{} {
-	data := map[string]interface{}{}
+
+func (k *KernelLogParser) Parse(line string) ParsedData {
+	if !k.IsIPTablesLogData(line) {
+		return ParsedData{}
+	}
+
+	data := map[string]string{}
 	words := strings.Fields(line)
 	for _, word := range words {
 		if equalSignIndex := strings.Index(word, "="); equalSignIndex > -1 {
@@ -28,5 +41,43 @@ func (k *KernelLogParser) Parse(line string) map[string]interface{} {
 			}
 		}
 	}
-	return data
+
+	allowed := strings.Contains(line, "OK_")
+	var direction string
+	if strings.Contains(data["OUT"], "s-") {
+		direction = "ingress"
+	} else {
+		direction = "egress"
+	}
+
+	sourcePort, err := strconv.Atoi(data["SPT"])
+	if err != nil {
+		sourcePort = 0
+	}
+	destinationPort, err := strconv.Atoi(data["DPT"])
+	if err != nil {
+		destinationPort = 0
+	}
+	icmpType, err := strconv.Atoi(data["TYPE"])
+	if err != nil {
+		icmpType = 0
+	}
+	icmpCode, err := strconv.Atoi(data["CODE"])
+	if err != nil {
+		icmpCode = 0
+	}
+
+	parsed := ParsedData{
+		Direction:       direction,
+		Allowed:         allowed,
+		SourceIP:        data["SRC"],
+		DestinationIP:   data["DST"],
+		SourcePort:      sourcePort,
+		DestinationPort: destinationPort,
+		Mark:            data["MARK"],
+		Protocol:        data["PROTO"],
+		ICMPType:        icmpType,
+		ICMPCode:        icmpCode,
+	}
+	return parsed
 }

@@ -2,19 +2,16 @@
 package fakes
 
 import (
-	"lib/datastore"
 	"log-transformer/merger"
 	"log-transformer/parser"
 	"sync"
 )
 
 type LogMerger struct {
-	MergeStub        func(parser.ParsedData, datastore.Container, datastore.Container) (merger.IPTablesLogData, error)
+	MergeStub        func(parser.ParsedData) (merger.IPTablesLogData, error)
 	mergeMutex       sync.RWMutex
 	mergeArgsForCall []struct {
 		arg1 parser.ParsedData
-		arg2 datastore.Container
-		arg3 datastore.Container
 	}
 	mergeReturns struct {
 		result1 merger.IPTablesLogData
@@ -28,18 +25,16 @@ type LogMerger struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *LogMerger) Merge(arg1 parser.ParsedData, arg2 datastore.Container, arg3 datastore.Container) (merger.IPTablesLogData, error) {
+func (fake *LogMerger) Merge(arg1 parser.ParsedData) (merger.IPTablesLogData, error) {
 	fake.mergeMutex.Lock()
 	ret, specificReturn := fake.mergeReturnsOnCall[len(fake.mergeArgsForCall)]
 	fake.mergeArgsForCall = append(fake.mergeArgsForCall, struct {
 		arg1 parser.ParsedData
-		arg2 datastore.Container
-		arg3 datastore.Container
-	}{arg1, arg2, arg3})
-	fake.recordInvocation("Merge", []interface{}{arg1, arg2, arg3})
+	}{arg1})
+	fake.recordInvocation("Merge", []interface{}{arg1})
 	fake.mergeMutex.Unlock()
 	if fake.MergeStub != nil {
-		return fake.MergeStub(arg1, arg2, arg3)
+		return fake.MergeStub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -53,10 +48,10 @@ func (fake *LogMerger) MergeCallCount() int {
 	return len(fake.mergeArgsForCall)
 }
 
-func (fake *LogMerger) MergeArgsForCall(i int) (parser.ParsedData, datastore.Container, datastore.Container) {
+func (fake *LogMerger) MergeArgsForCall(i int) parser.ParsedData {
 	fake.mergeMutex.RLock()
 	defer fake.mergeMutex.RUnlock()
-	return fake.mergeArgsForCall[i].arg1, fake.mergeArgsForCall[i].arg2, fake.mergeArgsForCall[i].arg3
+	return fake.mergeArgsForCall[i].arg1
 }
 
 func (fake *LogMerger) MergeReturns(result1 merger.IPTablesLogData, result2 error) {

@@ -12,9 +12,6 @@ import (
 	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/lager/lagertest"
 
-	"lib/datastore"
-	libfakes "lib/fakes"
-
 	"github.com/hpcloud/tail"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -27,7 +24,6 @@ var _ = Describe("Runner", func() {
 		lines          chan *tail.Line
 		fakeParser     *fakes.KernelLogParser
 		fakeMerger     *fakes.LogMerger
-		fakeStore      *libfakes.Datastore
 		logger         *lagertest.TestLogger
 		iptablesLogger *lagertest.TestLogger
 		logRunner      *runner.Runner
@@ -38,7 +34,6 @@ var _ = Describe("Runner", func() {
 		lines = make(chan *tail.Line)
 		fakeParser = &fakes.KernelLogParser{}
 		fakeMerger = &fakes.LogMerger{}
-		fakeStore = &libfakes.Datastore{}
 		logger = lagertest.NewTestLogger("test")
 		iptablesLogger = lagertest.NewTestLogger("iptables-test")
 
@@ -46,7 +41,6 @@ var _ = Describe("Runner", func() {
 			Lines:          lines,
 			Parser:         fakeParser,
 			Merger:         fakeMerger,
-			Store:          fakeStore,
 			Logger:         logger,
 			IPTablesLogger: iptablesLogger,
 		}
@@ -72,25 +66,16 @@ var _ = Describe("Runner", func() {
 			fakeParser.IsIPTablesLogDataReturns(true)
 
 			fakeParser.ParseReturns(parser.ParsedData{
-				Source:      "some-handle",
-				Destination: "",
+				SourceIP:      "source-ip",
+				DestinationIP: "dest-ip",
 			})
-
-			fakeStore.ReadAllReturns(map[string]datastore.Container{
-				"some-handle": datastore.Container{
-					Handle: "some-handle",
-					IP:     "some-ip",
-					Metadata: map[string]interface{}{
-						"foo": "bar",
-					},
-				},
-			}, nil)
 
 			fakeMerger.MergeReturns(merger.IPTablesLogData{
 				Message: "some-message",
 				Data:    lager.Data{"foo": "bar"},
 			}, nil)
 		})
+
 		It("parses log line from the kernel log", func() {
 			logRunnerProc = ifrit.Invoke(logRunner)
 			go func() {
@@ -105,22 +90,11 @@ var _ = Describe("Runner", func() {
 			Expect(fakeParser.ParseCallCount()).To(Equal(1))
 			Expect(fakeParser.ParseArgsForCall(0)).Should(Equal("some-line"))
 
-			Expect(fakeStore.ReadAllCallCount()).To(Equal(1))
-
 			Expect(fakeMerger.MergeCallCount()).To(Equal(1))
-			data, src, dst := fakeMerger.MergeArgsForCall(0)
-			Expect(data).To(Equal(parser.ParsedData{
-				Source:      "some-handle",
-				Destination: "",
+			Expect(fakeMerger.MergeArgsForCall(0)).To(Equal(parser.ParsedData{
+				SourceIP:      "source-ip",
+				DestinationIP: "dest-ip",
 			}))
-			Expect(src).To(Equal(datastore.Container{
-				Handle: "some-handle",
-				IP:     "some-ip",
-				Metadata: map[string]interface{}{
-					"foo": "bar",
-				},
-			}))
-			Expect(dst).To(Equal(datastore.Container{}))
 
 			Eventually(iptablesLogger.Logs).Should(HaveLen(1))
 			Expect(iptablesLogger.Logs()[0]).To(SatisfyAll(
@@ -149,7 +123,6 @@ var _ = Describe("Runner", func() {
 			Expect(fakeParser.IsIPTablesLogDataArgsForCall(0)).To(Equal("some-line"))
 
 			Expect(fakeParser.ParseCallCount()).To(Equal(0))
-			Expect(fakeStore.ReadAllCallCount()).To(Equal(0))
 			Expect(fakeMerger.MergeCallCount()).To(Equal(0))
 
 			Expect(iptablesLogger.Logs()).To(HaveLen(0))
@@ -182,8 +155,6 @@ var _ = Describe("Runner", func() {
 			Expect(fakeParser.ParseArgsForCall(2)).Should(Equal("4"))
 			Expect(fakeParser.ParseArgsForCall(3)).Should(Equal("6"))
 
-			Expect(fakeStore.ReadAllCallCount()).To(Equal(4))
-
 			Eventually(fakeMerger.MergeCallCount).Should(Equal(4))
 
 			Eventually(iptablesLogger.Logs).Should(HaveLen(4))
@@ -211,7 +182,6 @@ var _ = Describe("Runner", func() {
 
 			Expect(fakeParser.IsIPTablesLogDataCallCount()).To(Equal(0))
 			Expect(fakeParser.ParseCallCount()).To(Equal(0))
-			Expect(fakeStore.ReadAllCallCount()).To(Equal(0))
 			Expect(fakeMerger.MergeCallCount()).To(Equal(0))
 			Expect(iptablesLogger.Logs()).To(HaveLen(0))
 		})
